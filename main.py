@@ -31,6 +31,8 @@ from routers.progress import routes as progress_routes
 from routers.bookmarks import routes as bookmark_routes
 from routers.quiz import routes as quiz_routes
 from routers.solver_proxy import routes as solver_routes
+from routers.certificates import routes as certificate_routes
+from routers.verification import routes as verification_routes
 
 # Calculus AI Chatbot routes (submodule) — serves /api/chat/*
 _CHATBOT_ROOT = Path(__file__).resolve().parent.parent / "Calculus-AI-Chatbot"
@@ -60,6 +62,8 @@ async def root(request: Request):
                 "bookmarks": "/api/bookmarks  (GET /  POST /  DELETE /{id})",
                 "quiz": "/api/quiz  (GET /  POST /)",
                 "solver": "/api/solver  (POST /log  GET /history)",
+                "certificates": "/api/certificates  (POST /generate  GET /verify?token=)",
+                "verify_course": "/api/verify-course  (POST /  — body: {userProgress, courseData})",
             },
         }
     )
@@ -173,6 +177,23 @@ _DOCS_HTML = """<!DOCTYPE html>
 </div>
 
 <div class="group">
+  <div class="group-title">Certificates &nbsp;/api/certificates</div>
+  <div class="route"><span class="method post">POST</span>
+    <div><div class="path">/api/certificates/generate</div>
+    <div class="desc">🔒 Issue a signed certificate + QR code. Body: <code>{"course_id","course_title","username?"}</code></div></div></div>
+  <div class="route"><span class="method get">GET</span>
+    <div><div class="path">/api/certificates/verify?token=</div>
+    <div class="desc">Public — verify a scanned certificate token</div></div></div>
+</div>
+
+<div class="group">
+  <div class="group-title">Course Verification &nbsp;/api/verify-course</div>
+  <div class="route"><span class="method post">POST</span>
+    <div><div class="path">/api/verify-course/</div>
+    <div class="desc">Checks course completion. Body: <code>{"userProgress","courseData"}</code></div></div></div>
+</div>
+
+<div class="group">
   <div class="group-title">System</div>
   <div class="route"><span class="method get">GET</span>
     <div><div class="path">/api/health</div>
@@ -207,17 +228,21 @@ async def lifespan(app):
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
-# Frontend localhost origins (CRA 3000/3001 + Vite 5173). Override via ALLOWED_ORIGINS.
+# Local + production frontend origins. Extra origins via ALLOWED_ORIGINS (comma-separated).
+# Defaults are always included so a localhost-only SnapDeploy env cannot wipe production CORS.
 _DEFAULT_ORIGINS = (
     "http://localhost:3000,http://127.0.0.1:3000,"
     "http://localhost:3001,http://127.0.0.1:3001,"
-    "http://localhost:5173,http://127.0.0.1:5173"
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "https://calculus-runtime-frontend-ten.vercel.app,"
+    "https://calculus.quantumlogiclimited.com"
 )
-ALLOWED_ORIGINS = [
+_EXTRA_ORIGINS = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = list(dict.fromkeys(
     origin.strip()
-    for origin in os.getenv("ALLOWED_ORIGINS", _DEFAULT_ORIGINS).split(",")
+    for origin in f"{_DEFAULT_ORIGINS},{_EXTRA_ORIGINS}".split(",")
     if origin.strip()
-]
+))
 
 _routes = [
     Route("/", root),
@@ -229,6 +254,8 @@ _routes = [
     Mount("/api/bookmarks", routes=bookmark_routes),
     Mount("/api/quiz", routes=quiz_routes),
     Mount("/api/solver", routes=solver_routes),
+    Mount("/api/certificates", routes=certificate_routes),
+    Mount("/api/verify-course", routes=verification_routes),
 ]
 if chat_routes:
     _routes.append(Mount("/api/chat", routes=chat_routes))
