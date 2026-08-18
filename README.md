@@ -256,3 +256,5 @@ Authorization: Bearer <your-token>
 
 © 2025 QuantumLogics Incorporated. All rights reserved.
 This software is proprietary — see [LICENSE](./LICENSE) for the full terms.
+
+
